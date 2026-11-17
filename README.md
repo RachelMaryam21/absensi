@@ -57,3 +57,21 @@ perangkat dianggap baru (perlu persetujuan Admin).
 
 ## Deploy ke Vercel
 Lihat `PANDUAN-VERCEL.md`.
+
+## Kesesuaian dengan jurnal (Susilo & Abdurrahman, 2023)
+| Aturan di jurnal | Di sistem |
+|---|---|
+| Presensi semua karyawan: kepala madrasah, guru, tenaga administrasi, kebersihan, keamanan (hlm. 322) | 6 peran, termasuk Tenaga Kebersihan & Tenaga Keamanan |
+| Jam masuk 06.30, pulang 15.00; toleransi 30 menit (hlm. 322-323) | `JAM_MASUK`, `JAM_PULANG`, `TOLERANSI_MNT` |
+| Kehadiran minimal 90% (hlm. 323) | `MIN_KEHADIRAN` di config.php |
+| Evaluasi bulanan oleh Kepala Madrasah; <90% dipanggil, panggilan ke-2 SP 1, 3x berturut-turut diberhentikan (hlm. 324) | Menu **Evaluasi Bulanan** (`admin/evaluasi.php`) |
+| Tanpa surat keterangan dihitung tidak hadir (hlm. 324) | Tombol **Kecualikan** (alasan wajib) memutus hitungan berturut-turut |
+| Terlambat/pulang awal tidak terekam di mesin lama (hlm. 323) | Sistem baru TETAP mencatat dengan status Terlambat/Pulang awal (perbaikan) |
+
+Cara kerja evaluasi: pilih bulan yang sudah selesai -> **Proses evaluasi** -> sistem menandai pegawai <90% dan menghitung
+bulan berturut-turut (1 = Panggilan 1, 2 = SP 1, 3+ = rekomendasi pemberhentian). Kepala Madrasah/Admin mencatat tindak lanjut.
+Sistem hanya menghitung dan mencatat; **keputusan sanksi tetap di Kepala Madrasah**. Bulan tanpa data presensi sama sekali
+(sistem belum dipakai) dan akun yang baru dibuat pada bulan itu tidak dihitung.
+
+## Memperbarui database lama
+Database yang sudah terlanjur diimpor: jalankan `migrasi_evaluasi.sql` sekali (data tidak hilang).

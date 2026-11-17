@@ -77,12 +77,7 @@
     fetch('api/login.php', {
       method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nip: $('nip').value.trim(), sandi: $('sandi').value, device: dev })
-    }).then(function (r) {
-      return r.text().then(function (t) {
-        try { return JSON.parse(t); }
-        catch (x) { return { ok: false, tipe: 'err', pesan: 'Server membalas dengan error (kode ' + r.status + '). Hubungi Admin; cek ' + location.origin + '/api/cek.php' }; }
-      });
-    }).then(function (d) {
+    }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.ok) { location.href = d.redirect; return; }
       tampil(d.tipe, d.pesan || 'Gagal masuk.');
     }).catch(function () {

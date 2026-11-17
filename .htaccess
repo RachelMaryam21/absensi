@@ -1,0 +1,7 @@
+# Untuk Apache (XAMPP / hosting biasa): lindungi file sensitif
+<FilesMatch "\.(sql|md|ini|json)$">
+  Require all denied
+</FilesMatch>
+<Files "config.php">
+  Require all denied
+</Files>

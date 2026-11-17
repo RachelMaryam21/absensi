@@ -19,6 +19,8 @@ define('JAM_MASUK',     '06:30:00');   // jam kedatangan
 define('TOLERANSI_MNT', 30);           // toleransi keterlambatan (menit) -> batas 07:00
 define('JAM_PULANG',    '15:00:00');   // pulang sebelum jam ini = "pulang awal"
 define('HARI_KERJA',    [1, 2, 3, 4, 5]); // 1=Senin ... 7=Minggu
+// Kehadiran minimal per bulan (persen). Di bawah ini = masuk evaluasi bulanan (jurnal hlm. 323-324)
+define('MIN_KEHADIRAN', 90);
 // Tanggal libur (format Y-m-d) yang tidak dihitung sebagai hari kerja di rekapitulasi
 define('HARI_LIBUR',    []);           // contoh: ['2026-11-20']
 

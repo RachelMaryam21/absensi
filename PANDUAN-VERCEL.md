@@ -1,60 +1,75 @@
-# Panduan Deploy ke Vercel
+# Tutorial Deploy ke Vercel (dari nol)
 
-Vercel tidak punya PHP dan MySQL bawaan. Proyek ini memakai runtime komunitas **vercel-php** (PHP 8.3) untuk menjalankan PHP,
-dan **database MySQL di layanan lain** (Vercel hanya menjalankan kodenya).
+Gambaran: **Vercel** menjalankan kode PHP-nya, **TiDB Cloud** (MySQL online) menyimpan datanya, **GitHub** jadi tempat menaruh kode.
+Waktu sekitar 30–45 menit untuk pertama kali.
 
-## 1. Siapkan database MySQL online
-Pilih penyedia MySQL yang punya TLS dan paket gratis/murah (contoh: TiDB Cloud, Aiven, Railway; cek syarat terbaru masing-masing).
-1. Buat database kosong, catat **host, port, nama database, user, password**.
-2. Jalankan isi file **`database_online.sql`** pada database itu (lewat SQL editor penyedia, DBeaver, atau MySQL Workbench).
-3. Di pengaturan keamanan penyedia, izinkan koneksi dari mana saja (alamat IP Vercel berubah-ubah).
+## A. Buat 3 akun gratis
+1. github.com  2. vercel.com (daftar pakai akun GitHub)  3. tidbcloud.com
 
-## 2. Unggah proyek ke GitHub
-Unggah seluruh isi folder `presensi-ma` ke repositori (private disarankan). Jangan menaruh sandi database di dalam kode.
+## B. Siapkan database (TiDB Cloud)
+**B1. Buat instance.** Login tidbcloud.com → halaman **My TiDB** → buat instance **Starter**, pilih **MySQL-compatible** (bukan PostgreSQL), paket gratis. Pilih penyedia/wilayah **AWS** (fitur SQL Editor hanya ada di Starter AWS).
 
-## 3. Impor di Vercel
-1. vercel.com → **Add New → Project** → pilih repositori.
-2. **Framework Preset: Other.** Kosongkan Build Command dan Output Directory.
-3. Buka **Environment Variables**, isi:
+**B2. Ambil data koneksi.** Klik nama instance → di kanan atas klik **Connect** → buat password (**Generate Password**, hanya tampil sekali, langsung salin). Catat: Host, Port `4000`, Username (berakhiran `.root`), Password, Database `test`.
 
-| Nama | Isi |
+**B3. Masukkan data (pilih SALAH SATU):**
+- **Cara 1 – SQL Editor (di dalam TiDB Cloud):** klik nama instance → menu **SQL Editor** di panel kiri. Tempel seluruh isi **`database_tidb.sql`**, tekan **Ctrl+A** (pilih semua), lalu klik **Run**.
+- **Cara 2 – DBeaver (jika menu SQL Editor tidak ada):** unduh DBeaver Community (gratis) → *New Database Connection* → **MySQL** → isi Host, Port 4000, Database `test`, Username, Password → tab **SSL** centang **Use SSL** → Test Connection → Finish. Klik kanan koneksi → *SQL Editor → Open SQL script*, tempel isi `database_tidb.sql`, tekan **Alt+X** (Execute Script).
+
+Berhasil jika tabel `pengguna`, `perangkat`, `lokasi`, `presensi`, `koreksi_presensi`, `sesi` muncul.
+
+**B4.** Jika ada pengaturan IP access list, izinkan semua alamat (IP Vercel berubah-ubah).
+
+## C. Taruh kode di GitHub
+1. Ekstrak `presensi-ma.zip`.
+2. GitHub → **New repository** (Private) → beri nama `presensi-ma` → Create.
+3. Klik **uploading an existing file**, lalu seret **ISI** folder `presensi-ma` (bukan foldernya).
+   Pastikan di halaman repositori terlihat langsung: `index.html`, `vercel.json`, `api/`, `m/`, `admin/`, `includes/`, `assets/`.
+   (Kalau yang terlihat hanya satu folder `presensi-ma`, berarti salah tingkat: ulangi.)
+4. **Commit changes**.
+
+## D. Deploy di Vercel
+1. vercel.com → **Add New… → Project** → pilih repositori `presensi-ma` → **Import**.
+2. **Framework Preset: Other.** Build Command dan Output Directory dibiarkan kosong.
+3. Buka **Environment Variables**, tambahkan satu per satu:
+
+| Name | Value |
 |---|---|
-| `DB_HOST` | host database |
-| `DB_PORT` | port (mis. 3306 atau 4000) |
-| `DB_NAME` | nama database |
-| `DB_USER` | user database |
-| `DB_PASS` | sandi database |
-| `DB_SSL` | `1` (wajib untuk hampir semua database online) |
-| `BIOMETRIK_MODE` | `simulasi` untuk uji coba, `webauthn` untuk sidik jari asli |
-| `APP_ORIGIN` | alamat situs, mis. `https://presensi-ma.vercel.app` (wajib bila `webauthn`) |
+| `DB_HOST` | host dari TiDB |
+| `DB_PORT` | `4000` |
+| `DB_NAME` | `test` |
+| `DB_USER` | username dari TiDB |
+| `DB_PASS` | password dari TiDB |
+| `DB_SSL` | `1` |
+| `BIOMETRIK_MODE` | `simulasi` (dulu) |
 
-4. Klik **Deploy**.
+4. Klik **Deploy**. Tunggu selesai, lalu klik **Visit**. Alamatnya mirip `https://presensi-ma-xxxx.vercel.app`.
 
-## 4. Setelah situs hidup
-1. Buka alamat situs → login web panel di `/admin/login.php` dengan NIP `199203142018`, sandi `password123`.
-2. **Ganti semua sandi contoh** (menu Pengguna & Perangkat → Ubah).
-3. Menu **Lokasi** → atur titik pusat dan radius → Simpan.
-4. Mode `webauthn`: setiap pegawai membuka situs di Chrome Android, login, lalu menekan **Daftarkan sidik jari** sekali.
+## E. Pemeriksaan pertama
+1. Buka `https://alamat-anda.vercel.app/admin/login.php` → NIP `199203142018`, sandi `password123`.
+2. **Ganti semua sandi contoh**: menu Pengguna & Perangkat → Ubah.
+3. Menu **Lokasi** → klik titik di peta (atau isi koordinat) → atur radius → Simpan.
+4. Di HP buka alamat utama `https://alamat-anda.vercel.app/` → login pegawai → coba presensi (izinkan lokasi).
+
+## F. Mengaktifkan sidik jari asli (opsional)
+1. Vercel → Project → **Settings → Environment Variables**:
+   - ubah `BIOMETRIK_MODE` menjadi `webauthn`
+   - tambah `APP_ORIGIN` = `https://alamat-anda.vercel.app` (tanpa garis miring di akhir)
+2. **Deployments** → titik tiga pada deploy terbaru → **Redeploy**.
+3. Tiap pegawai: buka situs di Chrome Android → login → tekan **Daftarkan sidik jari** (HP harus sudah punya sidik jari terdaftar).
+
+## G. Memperbarui aplikasi
+Ubah file di GitHub (atau unggah ulang) → Vercel otomatis deploy ulang. Mengubah Environment Variables **wajib Redeploy**.
 
 ## Jika bermasalah
-**Langkah pertama: buka `https://ALAMAT-SITUS-ANDA/api/cek.php`.** Halaman ini memeriksa ekstensi PHP, variabel lingkungan,
-koneksi database, dan tabel, lalu menandai baris yang bermasalah dengan ❌. **Hapus `api/cek.php` setelah sistem normal.**
-
-| Gejala | Penyebab umum | Perbaikan |
-|---|---|---|
-| Login: "Server membalas dengan error (kode 500)" | Fungsi PHP gagal | Buka `/api/cek.php`, lihat baris ❌ |
-| "Server tidak dapat menjangkau database" | `DB_HOST`/`DB_PORT` salah, atau database memblokir IP | Periksa nilai; izinkan koneksi dari semua IP |
-| "Database menolak user/sandi" | `DB_USER`/`DB_PASS` salah | Perbaiki, lalu **Redeploy** |
-| "Koneksi ditolak karena TLS/SSL" | `DB_SSL` belum `1` | Isi `DB_SSL=1`, lalu **Redeploy** |
-| "Tabel database belum ada" | `database_online.sql` belum dijalankan | Jalankan pada database yang dipakai `DB_NAME` |
-| "Tidak dapat terhubung ke server. Periksa koneksi internet" | Benar-benar gagal jaringan (HP offline / situs belum selesai deploy) | Cek koneksi HP, cek status deploy di Vercel |
-
-- **Setelah mengubah Environment Variables**, wajib **Redeploy** (variabel baru tidak berlaku pada deploy lama).
-- Detail teknis ada di Vercel → Project → **Logs**.
-- Tabel `sesi` (penyimpan login) dibuat otomatis kalau belum ada.
-- `DB_SSL_VERIFY=1` (opsional) mengaktifkan verifikasi sertifikat server database.
+- **Error 500 / halaman gagal dimuat**: Vercel → Project → **Logs**. Hampir selalu DB_HOST/PORT/USER/PASS salah atau `DB_SSL` belum `1`.
+- **404 di semua halaman**: file tidak berada di akar repositori (lihat langkah C.3).
+- **Login "Tidak dapat terhubung ke server"**: fungsi PHP gagal; cek Logs.
+- **GPS ditolak**: pastikan izin lokasi browser untuk situs diizinkan (alamat sudah HTTPS).
 
 ## Catatan
-- vercel-php adalah runtime komunitas (bukan resmi Vercel). Untuk pemakaian sungguhan di madrasah, hosting PHP + MySQL biasa
-  (shared hosting/VPS) lebih sederhana dan lebih stabil.
-- Cek syarat paket Vercel yang Anda pakai (paket gratis mensyaratkan pemakaian non-komersial/pribadi).
+- PHP di Vercel memakai runtime komunitas `vercel-php` (bukan resmi Vercel). Untuk pemakaian rutin madrasah, hosting PHP + MySQL biasa lebih sederhana.
+- Paket gratis Vercel mensyaratkan pemakaian non-komersial/pribadi; cek syarat terbaru.
+
+## Memperbarui database yang sudah ada (fitur Evaluasi Bulanan)
+Jika database online Anda sudah diisi dengan versi lama, jalankan isi **`migrasi_evaluasi.sql`** sekali di SQL Editor/DBeaver
+(tanpa `USE`, pada database yang sama). Data tidak dihapus. Untuk database baru, cukup `database_tidb.sql` versi terbaru.

@@ -2,6 +2,7 @@
 -- Versi BERISI data awal (pengguna, perangkat, lokasi). Tabel presensi sengaja KOSONG.
 -- Untuk DATABASE ONLINE (Vercel, dll): pilih dulu database kosong yang sudah dibuat di penyedia, lalu jalankan file ini.
 
+DROP TABLE IF EXISTS evaluasi_bulanan;
 DROP TABLE IF EXISTS sesi;
 DROP TABLE IF EXISTS koreksi_presensi;
 DROP TABLE IF EXISTS presensi;
@@ -14,7 +15,7 @@ CREATE TABLE pengguna (
   nip              VARCHAR(30)  NOT NULL UNIQUE,
   nama             VARCHAR(100) NOT NULL,
   kata_sandi_hash  VARCHAR(255) NOT NULL,
-  peran            ENUM('guru','tendik','admin','kepala') NOT NULL,
+  peran            ENUM('guru','tendik','kebersihan','keamanan','admin','kepala') NOT NULL,
   aktif            TINYINT(1)   NOT NULL DEFAULT 1,
   dibuat_pada      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -74,6 +75,27 @@ CREATE TABLE koreksi_presensi (
   CONSTRAINT fk_koreksi_admin    FOREIGN KEY (id_admin)    REFERENCES pengguna(id_pengguna)
 ) ENGINE=InnoDB;
 
+-- Evaluasi bulanan & tindak lanjut kehadiran < 90% (jurnal hlm. 323-324)
+CREATE TABLE evaluasi_bulanan (
+  id_evaluasi    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id_pengguna    INT UNSIGNED NOT NULL,
+  bulan          CHAR(7)      NOT NULL,                    -- 'YYYY-MM'
+  hadir          SMALLINT UNSIGNED NOT NULL,
+  hari_kerja     SMALLINT UNSIGNED NOT NULL,
+  persen         DECIMAL(5,2) NOT NULL,
+  berturut       TINYINT UNSIGNED NOT NULL DEFAULT 1,      -- berapa bulan berturut-turut < 90%
+  tingkat        ENUM('panggilan_1','sp_1','rekom_berhenti') NOT NULL,
+  status_tindak  ENUM('belum','sudah') NOT NULL DEFAULT 'belum',
+  tanggal_tindak DATE NULL,
+  catatan        VARCHAR(255) NULL,
+  dikecualikan   TINYINT(1)   NOT NULL DEFAULT 0,          -- 1 = ada surat keterangan, memutus hitungan
+  dicatat_oleh   INT UNSIGNED NULL,
+  dibuat_pada    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_eval (id_pengguna, bulan),
+  CONSTRAINT fk_eval_pengguna FOREIGN KEY (id_pengguna) REFERENCES pengguna(id_pengguna) ON DELETE CASCADE,
+  CONSTRAINT fk_eval_pencatat FOREIGN KEY (dicatat_oleh) REFERENCES pengguna(id_pengguna) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 -- Sesi login disimpan di database (agar jalan di hosting serverless seperti Vercel)
 CREATE TABLE sesi (
   id         VARCHAR(128) NOT NULL PRIMARY KEY,
@@ -103,7 +125,9 @@ INSERT INTO pengguna (nip, nama, kata_sandi_hash, peran) VALUES
  ('199404052019', 'Lailatul Qomariyah, S.Pd', '$2y$10$dj9.CXvj6fo97vW30k8U2OimV/ZGuUyNw7M8Hln3jdzwKaBnT24iu', 'guru'),
  ('199710122021', 'Ahmad Syafii', '$2y$10$dj9.CXvj6fo97vW30k8U2OimV/ZGuUyNw7M8Hln3jdzwKaBnT24iu', 'tendik'),
  ('199601282022', 'Mutmainnah', '$2y$10$dj9.CXvj6fo97vW30k8U2OimV/ZGuUyNw7M8Hln3jdzwKaBnT24iu', 'tendik'),
- ('198906142014', 'Imam Ghozali, S.Kom', '$2y$10$dj9.CXvj6fo97vW30k8U2OimV/ZGuUyNw7M8Hln3jdzwKaBnT24iu', 'tendik');
+ ('198906142014', 'Imam Ghozali, S.Kom', '$2y$10$dj9.CXvj6fo97vW30k8U2OimV/ZGuUyNw7M8Hln3jdzwKaBnT24iu', 'tendik'),
+ ('200001012022', 'Sulastri', '$2y$10$dj9.CXvj6fo97vW30k8U2OimV/ZGuUyNw7M8Hln3jdzwKaBnT24iu', 'kebersihan'),
+ ('199812122021', 'Hasyim', '$2y$10$dj9.CXvj6fo97vW30k8U2OimV/ZGuUyNw7M8Hln3jdzwKaBnT24iu', 'keamanan');
 
 -- Contoh permintaan pergantian perangkat (tampil di menu Pengguna & Perangkat -> Setujui / Tolak).
 -- Perangkat lain terikat otomatis saat pengguna login pertama di aplikasi mobile.
