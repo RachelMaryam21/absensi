@@ -40,7 +40,7 @@ Berhasil jika tabel `pengguna`, `perangkat`, `lokasi`, `presensi`, `koreksi_pres
 | `DB_USER` | username dari TiDB |
 | `DB_PASS` | password dari TiDB |
 | `DB_SSL` | `1` |
-| `BIOMETRIK_MODE` | `simulasi` (dulu) |
+| `BIOMETRIK_MODE` | `simulasi` (nilai awal; nanti diubah lewat menu Pengaturan) |
 
 4. Klik **Deploy**. Tunggu selesai, lalu klik **Visit**. Alamatnya mirip `https://presensi-ma-xxxx.vercel.app`.
 
@@ -51,11 +51,9 @@ Berhasil jika tabel `pengguna`, `perangkat`, `lokasi`, `presensi`, `koreksi_pres
 4. Di HP buka alamat utama `https://alamat-anda.vercel.app/` → login pegawai → coba presensi (izinkan lokasi).
 
 ## F. Mengaktifkan sidik jari asli (opsional)
-1. Vercel → Project → **Settings → Environment Variables**:
-   - ubah `BIOMETRIK_MODE` menjadi `webauthn`
-   - tambah `APP_ORIGIN` = `https://alamat-anda.vercel.app` (tanpa garis miring di akhir)
-2. **Deployments** → titik tiga pada deploy terbaru → **Redeploy**.
-3. Tiap pegawai: buka situs di Chrome Android → login → tekan **Daftarkan sidik jari** (HP harus sudah punya sidik jari terdaftar).
+1. Login web panel sebagai Admin → menu **Pengaturan** → **Mode verifikasi: Sidik jari asli perangkat** → Simpan.
+   (Hanya bisa jika panel dibuka lewat HTTPS, yang otomatis di Vercel. Tidak perlu Redeploy.)
+2. Tiap pegawai: buka situs di Chrome Android → login → tekan **Daftarkan sidik jari** (HP harus sudah punya sidik jari terdaftar).
 
 ## G. Memperbarui aplikasi
 Ubah file di GitHub (atau unggah ulang) → Vercel otomatis deploy ulang. Mengubah Environment Variables **wajib Redeploy**.

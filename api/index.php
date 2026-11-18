@@ -19,7 +19,7 @@ if ($path === '/' || $path === '/index.html') {                       // halaman
 }
 if (rtrim($path, '/') === '/admin') { require $root . '/admin/index.php'; return true; }
 
-$php  = preg_match('#^/(m|admin)/[a-z_]+\.php$#', $path) || preg_match('#^/api/(presensi|login|cek)\.php$#', $path);
+$php  = preg_match('#^/(m|admin)/[a-z_]+\.php$#', $path) || preg_match('#^/api/(presensi|login)\.php$#', $path);
 $aset = preg_match('#^/assets/(css|js)/[\w.\-]+\.(css|js)$#', $path);
 if ($php || $aset) {
     if (is_file($root . $path)) return false;                          // layani file apa adanya (PHP dijalankan)

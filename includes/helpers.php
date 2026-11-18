@@ -1,23 +1,17 @@
 <?php
-/* ---------- Pengganti fungsi mbstring bila ekstensinya tidak aktif di server/hosting ---------- */
-if (!function_exists('mb_substr')) {
-    function mb_substr(string $s, int $start, ?int $len = null): string {
-        $a = preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        return implode('', array_slice($a, $start, $len));
-    }
-}
-if (!function_exists('mb_strlen')) {
-    function mb_strlen(string $s): int { return count(preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: []); }
-}
-if (!function_exists('mb_strtoupper')) {
-    function mb_strtoupper(string $s): string { return strtoupper($s); }
-}
-
 const NAMA_PERAN = [
-    'guru'   => 'Guru',
-    'tendik' => 'Tenaga Kependidikan',
-    'admin'  => 'Admin Tata Usaha',
-    'kepala' => 'Kepala Madrasah',
+    'guru'       => 'Guru',
+    'tendik'     => 'Tenaga Kependidikan',
+    'kebersihan' => 'Tenaga Kebersihan',
+    'keamanan'   => 'Tenaga Keamanan',
+    'admin'      => 'Admin Tata Usaha',
+    'kepala'     => 'Kepala Madrasah',
+];
+/* Jenjang tindak lanjut bila kehadiran < 90% berturut-turut (jurnal hlm. 324) */
+const NAMA_TINGKAT = [
+    'panggilan_1'    => 'Panggilan 1',
+    'sp_1'           => 'Surat Peringatan 1',
+    'rekom_berhenti' => 'Rekomendasi pemberhentian',
 ];
 const NAMA_STATUS = [
     'tepat_waktu' => 'Tepat waktu',
@@ -168,4 +162,94 @@ function icon(string $n, int $size = 20): string {
         'percent'     => '<path d="M18 6L6 18"/><circle cx="7.5" cy="7.5" r="2.3"/><circle cx="16.5" cy="16.5" r="2.3"/>',
     ];
     return '<svg class="i" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . ($p[$n] ?? '') . '</svg>';
+}
+
+
+/* ---------- Rekap kehadiran satu bulan (dipakai Rekapitulasi & Evaluasi) ---------- */
+function hitung_rekap(string $ym, string $peran = ''): array {
+    $pdo = db();
+    $hk = daftar_hari_kerja($ym); $set = array_flip($hk); $n = count($hk);
+
+    $sql = 'SELECT id_pengguna, nip, nama, peran, dibuat_pada FROM pengguna WHERE aktif = 1'; $par = [];
+    if ($peran !== '') { $sql .= ' AND peran = ?'; $par[] = $peran; }
+    $st = $pdo->prepare($sql . ' ORDER BY nama'); $st->execute($par);
+    $pegawai = $st->fetchAll();
+
+    $st = $pdo->prepare('SELECT id_pengguna, tanggal, status FROM presensi WHERE tanggal BETWEEN ? AND LAST_DAY(?) AND jam_masuk IS NOT NULL');
+    $st->execute([$ym . '-01', $ym . '-01']);
+    $map = [];
+    foreach ($st as $r) if (isset($set[$r['tanggal']])) $map[$r['id_pengguna']][] = $r['status'];
+
+    $rows = []; $sumP = 0; $nP = 0; $sumTl = 0; $bawah = 0;
+    foreach ($pegawai as $p) {
+        $s = $map[$p['id_pengguna']] ?? [];
+        $hadir = count($s);
+        $tl = count(array_filter($s, fn($x) => $x === 'terlambat'));
+        $raw = $n ? $hadir / $n * 100 : null;
+        $persen = $raw === null ? null : (int)round($raw);
+        $di_bawah = $raw !== null && $raw < MIN_KEHADIRAN;       // dibandingkan sebelum pembulatan
+        if ($persen !== null) { $sumP += $persen; $nP++; }
+        $sumTl += $tl; $bawah += $di_bawah ? 1 : 0;
+        $rows[] = ['id' => (int)$p['id_pengguna'], 'nip' => $p['nip'], 'nama' => $p['nama'], 'peran' => $p['peran'], 'dibuat' => $p['dibuat_pada'],
+                   'hadir' => $hadir, 'terlambat' => $tl, 'absen' => max(0, $n - $hadir), 'persen' => $persen, 'raw' => $raw, 'bawah' => $di_bawah];
+    }
+    return ['hari_kerja' => $n, 'rows' => $rows, 'rata' => $nP ? (int)round($sumP / $nP) : null, 'terlambat' => $sumTl, 'bawah' => $bawah];
+}
+
+function bulan_sebelum(string $ym, int $n = 1): string {
+    return date('Y-m', strtotime($ym . '-01 -' . $n . ' month'));
+}
+
+function badge_tingkat(string $t): string {
+    $cls = ['panggilan_1' => 'warn', 'sp_1' => 'warn', 'rekom_berhenti' => 'err'][$t] ?? 'muted';
+    return '<span class="badge badge-' . $cls . '">' . e(NAMA_TINGKAT[$t] ?? $t) . '</span>';
+}
+
+/**
+ * Evaluasi bulanan: tandai pegawai berkehadiran < MIN_KEHADIRAN dan hitung berapa bulan berturut-turut.
+ * 1x = Panggilan 1, 2x = Surat Peringatan 1, 3x+ = rekomendasi pemberhentian (keputusan tetap di Kepala Madrasah).
+ * Bulan yang "dikecualikan" (mis. ada surat keterangan) memutus hitungan berturut-turut.
+ */
+function proses_evaluasi(string $ym): int {
+    $pdo = db();
+    $r = hitung_rekap($ym);
+    if ($r['hari_kerja'] === 0) return 0;
+    if (!array_filter($r['rows'], fn($x) => $x['hadir'] > 0)) return 0;     // belum ada presensi sama sekali pada bulan itu
+
+    $cache = [];                                                    // rekap bulan-bulan sebelumnya (per bulan sekali)
+    $persenBulan = function (string $m, int $id) use (&$cache) {
+        if (!isset($cache[$m])) {
+            $rk = hitung_rekap($m)['rows'];
+            // bulan tanpa satu pun presensi = sistem belum dipakai -> tidak dihitung
+            $cache[$m] = array_filter($rk, fn($x) => $x['hadir'] > 0) ? array_column($rk, 'raw', 'id') : [];
+        }
+        return $cache[$m][$id] ?? null;
+    };
+    $kecuali = $pdo->prepare('SELECT 1 FROM evaluasi_bulanan WHERE id_pengguna = ? AND bulan = ? AND dikecualikan = 1');
+
+    $ada = [];
+    foreach ($r['rows'] as $p) {
+        if (substr($p['dibuat'], 0, 7) >= $ym) continue;            // akun baru dibuat pada/setelah bulan ini: belum dievaluasi
+        if (!$p['bawah']) continue;
+        $ada[] = $p['id'];
+
+        $berturut = 1; $m = $ym;
+        for ($i = 0; $i < 11; $i++) {
+            $m = bulan_sebelum($m);
+            if (substr($p['dibuat'], 0, 7) >= $m) break;
+            $kecuali->execute([$p['id'], $m]);
+            if ($kecuali->fetchColumn()) break;
+            $x = $persenBulan($m, $p['id']);
+            if ($x !== null && $x < MIN_KEHADIRAN) $berturut++; else break;
+        }
+        $tingkat = $berturut >= 3 ? 'rekom_berhenti' : ($berturut === 2 ? 'sp_1' : 'panggilan_1');
+        $pdo->prepare('INSERT INTO evaluasi_bulanan (id_pengguna, bulan, hadir, hari_kerja, persen, berturut, tingkat) VALUES (?,?,?,?,?,?,?)
+                       ON DUPLICATE KEY UPDATE hadir = VALUES(hadir), hari_kerja = VALUES(hari_kerja), persen = VALUES(persen), berturut = VALUES(berturut), tingkat = VALUES(tingkat)')
+            ->execute([$p['id'], $ym, $p['hadir'], $r['hari_kerja'], round($p['raw'], 2), $berturut, $tingkat]);
+    }
+    // Bersihkan baris lama yang kini sudah memenuhi syarat (mis. setelah koreksi presensi) dan belum ditindaklanjuti
+    $q = $pdo->prepare("SELECT id_evaluasi, id_pengguna FROM evaluasi_bulanan WHERE bulan = ? AND status_tindak = 'belum' AND dikecualikan = 0");
+    $q->execute([$ym]);
+    foreach ($q as $row) if (!in_array((int)$row['id_pengguna'], $ada, true)) $pdo->prepare('DELETE FROM evaluasi_bulanan WHERE id_evaluasi = ?')->execute([$row['id_evaluasi']]);
+    return count($ada);
 }

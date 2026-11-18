@@ -4,7 +4,7 @@ PHP native (tanpa framework) + MySQL/MariaDB. Mengikuti dokumen TPKI (KF-01 s.d.
 ## Instalasi (±5 menit)
 1. Salin folder ini ke web server (Apache/Nginx + PHP ≥ 8.0, ekstensi `pdo_mysql`).
 2. Impor database: `mysql -u root -p < database.sql`
-3. Edit `config.php` (user/sandi DB, jam kerja, `BIOMETRIK_MODE`).
+3. Edit `config.php` (user/sandi DB). Jam kerja, toleransi, kehadiran minimal, dan mode sidik jari diatur dari menu **Pengaturan** di Web Panel (Admin).
 4. Buka `http://server/presensi-ma/` (mobile, index.html) dan `.../admin/` (web panel).
 
 **Akun contoh** (sandi semua: `password123` — segera ganti):
@@ -18,7 +18,7 @@ PHP native (tanpa framework) + MySQL/MariaDB. Mengikuti dokumen TPKI (KF-01 s.d.
 **Wajib setelah instal:** login Admin → menu **Lokasi** → tekan *Lokasi saat ini* (saat berada di madrasah) → *Simpan*.
 Koordinat bawaan hanyalah contoh.
 
-## Sidik jari: dua mode (`BIOMETRIK_MODE` di config.php)
+## Sidik jari: dua mode (menu Pengaturan -> Mode verifikasi)
 - `simulasi` — tombol "Sentuh sensor" di layar. Untuk demo/uji; **bukan** keamanan sungguhan.
 - `webauthn` — sidik jari asli perangkat (Chrome Android). Server hanya memverifikasi tanda tangan
   kriptografis dari sensor (flag *user verified*); data sidik jari tidak pernah dikirim/disimpan (KNF-02).
@@ -75,3 +75,8 @@ Sistem hanya menghitung dan mencatat; **keputusan sanksi tetap di Kepala Madrasa
 
 ## Memperbarui database lama
 Database yang sudah terlanjur diimpor: jalankan `migrasi_evaluasi.sql` sekali (data tidak hilang).
+
+## Menu Pengaturan (khusus Admin)
+Mengubah jam masuk, jam pulang, toleransi keterlambatan (batas terlambat = jam masuk + toleransi), kehadiran minimal (%),
+dan mode sidik jari tanpa mengedit kode. Disimpan di tabel `pengaturan` (dibuat otomatis). Perubahan berlaku untuk presensi
+berikutnya; status presensi yang sudah tercatat tidak dihitung ulang. Nilai di `config.php` hanya default awal.

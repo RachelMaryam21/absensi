@@ -4,6 +4,7 @@ USE test;
 -- Versi BERISI data awal (pengguna, perangkat, lokasi). Tabel presensi sengaja KOSONG.
 -- Untuk TiDB Cloud (database bawaan: test). Untuk DATABASE ONLINE (Vercel, dll): pilih dulu database kosong yang sudah dibuat di penyedia, lalu jalankan file ini.
 
+DROP TABLE IF EXISTS pengaturan;
 DROP TABLE IF EXISTS evaluasi_bulanan;
 DROP TABLE IF EXISTS sesi;
 DROP TABLE IF EXISTS koreksi_presensi;
@@ -96,6 +97,12 @@ CREATE TABLE evaluasi_bulanan (
   UNIQUE KEY uq_eval (id_pengguna, bulan),
   CONSTRAINT fk_eval_pengguna FOREIGN KEY (id_pengguna) REFERENCES pengguna(id_pengguna) ON DELETE CASCADE,
   CONSTRAINT fk_eval_pencatat FOREIGN KEY (dicatat_oleh) REFERENCES pengguna(id_pengguna) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Pengaturan yang bisa diubah dari menu Pengaturan (jam kerja, toleransi, kehadiran minimal, mode sidik jari)
+CREATE TABLE pengaturan (
+  kunci VARCHAR(50)  NOT NULL PRIMARY KEY,
+  nilai VARCHAR(100) NOT NULL
 ) ENGINE=InnoDB;
 
 -- Sesi login disimpan di database (agar jalan di hosting serverless seperti Vercel)

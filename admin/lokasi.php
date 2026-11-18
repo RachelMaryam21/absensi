@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($nama === '')                                              $err = 'Nama lokasi wajib diisi.';
     elseif (!is_numeric($lat) || abs($lat) > 90)                   $err = 'Latitude tidak valid (−90 sampai 90).';
     elseif (!is_numeric($lng) || abs($lng) > 180)                  $err = 'Longitude tidak valid (−180 sampai 180).';
-    elseif (!preg_match('/^\d+$/', (string)$rad) || $rad < 10 || $rad > 5000) $err = 'Radius harus 10–5000 meter.';
+    elseif (!ctype_digit((string)$rad) || $rad < 10 || $rad > 5000) $err = 'Radius harus 10–5000 meter.';
 
     if ($err) flash('err', $err);
     else {

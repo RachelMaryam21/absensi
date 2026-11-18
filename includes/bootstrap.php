@@ -2,42 +2,6 @@
 require_once __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TZ);
 
-/**
- * Penanganan error terpusat. display_errors dimatikan, jadi tanpa ini pengguna hanya melihat
- * halaman kosong/HTML dan halaman login salah menyimpulkan "tidak dapat terhubung ke server".
- * Permintaan API/JSON dijawab JSON yang jelas; halaman biasa dijawab pesan singkat. Detail teknis ke log.
- */
-function __pesan_galat(Throwable $e): string {
-    $m = $e->getMessage();
-    if ($e instanceof PDOException) {
-        if (stripos($m, 'getaddrinfo') !== false || stripos($m, 'php_network') !== false || strpos($m, '2002') !== false || stripos($m, 'timed out') !== false)
-            return 'Server tidak dapat menjangkau database. Periksa DB_HOST dan DB_PORT, serta izin akses jaringan database.';
-        if (strpos($m, '1045') !== false) return 'Database menolak user/sandi. Periksa DB_USER dan DB_PASS.';
-        if (strpos($m, '1049') !== false) return 'Nama database tidak ditemukan. Periksa DB_NAME.';
-        if (stripos($m, 'ssl') !== false || stripos($m, 'tls') !== false || stripos($m, 'secure transport') !== false || strpos($m, '3159') !== false)
-            return 'Koneksi database ditolak karena TLS/SSL. Atur DB_SSL=1 (database online) atau 0 (database lokal).';
-        if (strpos($m, '42S02') !== false) return 'Tabel database belum ada. Jalankan database_online.sql pada database tersebut.';
-        return 'Terjadi kesalahan pada database.';
-    }
-    return 'Terjadi kesalahan di server.';
-}
-set_exception_handler(function (Throwable $e) {
-    error_log('[presensi] ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
-    if (!headers_sent()) http_response_code(500);
-    $uri = $_SERVER['REQUEST_URI'] ?? '';
-    $json = stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') === 0 || strpos($uri, '/api/') !== false;
-    $pesan = __pesan_galat($e);
-    if ($json) {
-        if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['ok' => false, 'tipe' => 'err', 'pesan' => $pesan . ' (kesalahan server)'], JSON_UNESCAPED_UNICODE);
-    } else {
-        if (!headers_sent()) header('Content-Type: text/html; charset=utf-8');
-        echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kesalahan server</title>'
-           . '<body style="font-family:sans-serif;padding:32px;max-width:560px;margin:auto"><h2>Terjadi kesalahan di server</h2><p>'
-           . htmlspecialchars($pesan, ENT_QUOTES, 'UTF-8') . '</p><p><a href="/api/cek.php">Buka halaman diagnosa</a></p></body>';
-    }
-});
-
 function is_https(): bool {
     return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';   // di balik proxy (Vercel, dll)
@@ -55,13 +19,10 @@ function db(): PDO {
             $ca = DB_SSL_CA;
             if ($ca === '') foreach (['/etc/ssl/certs/ca-certificates.crt', '/etc/pki/tls/certs/ca-bundle.crt', '/etc/ssl/cert.pem'] as $c) if (is_file($c)) { $ca = $c; break; }
             if ($ca !== '') $opt[PDO::MYSQL_ATTR_SSL_CA] = $ca;
-            else $opt[PDO::MYSQL_ATTR_SSL_CAPATH] = '/etc/ssl/certs';
-            // Verifikasi sertifikat server hanya bila DB_SSL_VERIFY=1 (default mati agar tidak gagal di runtime tanpa bundel CA)
-            $opt[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = getenv('DB_SSL_VERIFY') === '1';
+            else { $opt[PDO::MYSQL_ATTR_SSL_CAPATH] = '/etc/ssl/certs'; $opt[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false; }
         }
-        $opt[PDO::ATTR_TIMEOUT] = 8;                             // jangan menggantung bila database tidak terjangkau
         $pdo = new PDO('mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';charset=utf8mb4', DB_USER, DB_PASS, $opt);
-        try { $pdo->exec("SET time_zone = '" . date('P') . "'"); } catch (Throwable $e) { /* abaikan bila server tidak mendukung */ }
+        $pdo->exec("SET time_zone = '" . date('P') . "'");
     }
     return $pdo;
 }
@@ -104,7 +65,7 @@ class DbSession implements SessionHandlerInterface {
     }
 }
 
-if (!defined('SKIP_SESSION') && session_status() === PHP_SESSION_NONE) {
+if (session_status() === PHP_SESSION_NONE) {
     session_set_save_handler(new DbSession(), true);
     session_set_cookie_params([
         'lifetime' => 0,
@@ -116,6 +77,41 @@ if (!defined('SKIP_SESSION') && session_status() === PHP_SESSION_NONE) {
     session_name('presensi_ma');
     session_start();
 }
+
+/* ---------- Pengaturan (tabel `pengaturan`, default dari config.php) ---------- */
+const PENGATURAN_SQL = 'CREATE TABLE IF NOT EXISTS pengaturan (kunci VARCHAR(50) NOT NULL PRIMARY KEY, nilai VARCHAR(100) NOT NULL) ENGINE=InnoDB';
+
+function pengaturan_tersimpan(): array {
+    try { return db()->query('SELECT kunci, nilai FROM pengaturan')->fetchAll(PDO::FETCH_KEY_PAIR); }
+    catch (PDOException $e) {
+        if ($e->getCode() !== '42S02') throw $e;                  // tabel belum ada -> buat otomatis
+        db()->exec(PENGATURAN_SQL); return [];
+    }
+}
+
+function pengaturan_valid(array $n): ?string {                      // null = valid, selain itu pesan kesalahan
+    foreach (['jam_masuk', 'jam_pulang'] as $k) if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string)($n[$k] ?? ''))) return 'Format jam tidak valid.';
+    if (!ctype_digit((string)($n['toleransi_mnt'] ?? '')) || (int)$n['toleransi_mnt'] > 180) return 'Toleransi harus 0–180 menit.';
+    if (!ctype_digit((string)($n['min_kehadiran'] ?? '')) || (int)$n['min_kehadiran'] < 1 || (int)$n['min_kehadiran'] > 100) return 'Kehadiran minimal harus 1–100%.';
+    if (!in_array($n['biometrik_mode'] ?? '', ['simulasi', 'webauthn'], true)) return 'Mode sidik jari tidak valid.';
+    if ($n['jam_pulang'] <= $n['jam_masuk']) return 'Jam pulang harus setelah jam masuk.';
+    if (strtotime($n['jam_masuk']) + (int)$n['toleransi_mnt'] * 60 >= strtotime($n['jam_pulang'])) return 'Batas terlambat harus sebelum jam pulang.';
+    return null;
+}
+
+function pengaturan_semua(): array {
+    $n = array_merge(PENGATURAN_AWAL, pengaturan_tersimpan());
+    return pengaturan_valid($n) === null ? $n : PENGATURAN_AWAL;     // data rusak -> pakai default
+}
+
+(function () {
+    $n = pengaturan_semua();
+    define('JAM_MASUK',      $n['jam_masuk'] . ':00');
+    define('TOLERANSI_MNT',  (int)$n['toleransi_mnt']);
+    define('JAM_PULANG',     $n['jam_pulang'] . ':00');
+    define('MIN_KEHADIRAN',  (int)$n['min_kehadiran']);
+    define('BIOMETRIK_MODE', $n['biometrik_mode']);
+})();
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/auth.php';

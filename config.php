@@ -14,20 +14,20 @@ define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
 define('DB_SSL', getenv('DB_SSL') === '1');
 define('DB_SSL_CA', getenv('DB_SSL_CA') ?: '');
 
-// --- Aturan presensi (Bab 1.5 & KF-05) ---
-define('JAM_MASUK',     '06:30:00');   // jam kedatangan
-define('TOLERANSI_MNT', 30);           // toleransi keterlambatan (menit) -> batas 07:00
-define('JAM_PULANG',    '15:00:00');   // pulang sebelum jam ini = "pulang awal"
-define('HARI_KERJA',    [1, 2, 3, 4, 5]); // 1=Senin ... 7=Minggu
-// Kehadiran minimal per bulan (persen). Di bawah ini = masuk evaluasi bulanan (jurnal hlm. 323-324)
-define('MIN_KEHADIRAN', 90);
+// --- Pengaturan awal ---
+// Nilai ini hanya DEFAULT. Setelah aplikasi berjalan, ubah lewat menu "Pengaturan" di Web Panel (khusus Admin);
+// nilai yang disimpan di database akan menggantikan nilai di bawah.
+define('PENGATURAN_AWAL', [
+    'jam_masuk'      => '06:30',   // jam kedatangan
+    'toleransi_mnt'  => 30,        // toleransi keterlambatan (menit) -> batas terlambat = jam masuk + toleransi
+    'jam_pulang'     => '15:00',   // pulang sebelum jam ini = "pulang awal"
+    'min_kehadiran'  => 90,        // kehadiran minimal per bulan (%); di bawah ini masuk evaluasi bulanan
+    // 'simulasi' = tombol simulasi (demo, tanpa HTTPS) | 'webauthn' = sidik jari asli perangkat (WAJIB HTTPS)
+    'biometrik_mode' => getenv('BIOMETRIK_MODE') ?: 'simulasi',
+]);
+define('HARI_KERJA', [1, 2, 3, 4, 5]); // 1=Senin ... 7=Minggu
 // Tanggal libur (format Y-m-d) yang tidak dihitung sebagai hari kerja di rekapitulasi
-define('HARI_LIBUR',    []);           // contoh: ['2026-11-20']
-
-// --- Biometrik ---
-// 'webauthn'  : sidik jari asli perangkat (WebAuthn). WAJIB HTTPS (atau localhost).
-// 'simulasi'  : tombol simulasi sidik jari, hanya untuk demo/pengujian tanpa HTTPS.
-define('BIOMETRIK_MODE', getenv('BIOMETRIK_MODE') ?: 'simulasi');
+define('HARI_LIBUR', []);              // contoh: ['2026-11-20']
 
 // --- Umum ---
 define('APP_NAME',  'Presensi MA');

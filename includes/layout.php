@@ -43,6 +43,8 @@ function p_head(string $title, string $aktif, array $u): void {
         'lokasi'   => ['Lokasi Presensi',      'admin/lokasi.php',        ['admin'],           'pin'],
         'koreksi'  => ['Koreksi Presensi',     'admin/koreksi.php',       ['admin'],           'edit'],
         'rekap'    => ['Rekapitulasi',         'admin/rekapitulasi.php',  ['admin', 'kepala'], 'chart'],
+        'evaluasi' => ['Evaluasi Bulanan',     'admin/evaluasi.php',      ['admin', 'kepala'], 'shield'],
+        'pengaturan' => ['Pengaturan',         'admin/pengaturan.php',    ['admin'],           'clock'],
     ]; ?>
 <!doctype html>
 <html lang="id">
