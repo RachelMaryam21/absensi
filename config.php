@@ -19,7 +19,7 @@ define('DB_SSL_CA', getenv('DB_SSL_CA') ?: '');
 // nilai yang disimpan di database akan menggantikan nilai di bawah.
 define('PENGATURAN_AWAL', [
     'jam_masuk'      => '06:30',   // jam kedatangan
-    'toleransi_mnt'  => 180,        // toleransi keterlambatan (menit) -> batas terlambat = jam masuk + toleransi
+    'toleransi_mnt'  => 30,        // toleransi keterlambatan (menit) -> batas terlambat = jam masuk + toleransi
     'jam_pulang'     => '15:00',   // pulang sebelum jam ini = "pulang awal"
     'min_kehadiran'  => 90,        // kehadiran minimal per bulan (%); di bawah ini masuk evaluasi bulanan
     // 'simulasi' = tombol simulasi (demo, tanpa HTTPS) | 'webauthn' = sidik jari asli perangkat (WAJIB HTTPS)
